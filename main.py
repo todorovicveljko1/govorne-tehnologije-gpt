@@ -22,18 +22,18 @@ OUR_SPLIT_PATTERN = r"""'|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]++[\r
 VOCAB_SIZE = 512
 
 # model
-BLOCK_SIZE = 128
-N_LAYER = 8
+BLOCK_SIZE = 64
+N_LAYER = 2
 N_HEAD = 4
-N_EMBD = 256
+N_EMBD = 128
 
 # train
 DEVICE = 'cpu'
-BATCH_SIZE = 16
+BATCH_SIZE = 256
 ITERS = 2000
-MIN_LR = 6e-5
+MAX_LR = 6e-3
+MIN_LR = MAX_LR / 10
 WARMUP_ITERS = 200
-MAX_LR = 6e-4
 LR_DECAY_DUR = 60000
 
 WEIGHT_DECAY = 1e-1
@@ -96,7 +96,9 @@ if __name__ == '__main__':
         ids = tok.encode(text)
         t1 = time.time()
         print(f'ENCODING: {DATAFILE}, took {t1 - t0:.2f} seconds')
-        np.save(BIN_DATAFILE, np.array(ids).astype(np.uint16))
+        arr = np.array(ids).astype(np.uint16)
+        fp_save = np.memmap(BIN_DATAFILE, dtype='uint16', mode='w+', shape=(arr.shape[0],))
+        fp_save[:] = arr[:]
 
     # Link BIN_DATAFILE and np, don't read it, just refit to memory
     fp = np.memmap(BIN_DATAFILE, dtype='uint16', mode='r')
@@ -105,6 +107,7 @@ if __name__ == '__main__':
     model = gpt.GPT(model_cfg)
     optimizer = model.configure_optimizers(WEIGHT_DECAY, MAX_LR, (BETA1, BETA2), DEVICE)
     t0 = time.time()
+    dt = 0
     for it in range(ITERS):
         lr = get_lr(it)
         X, Y = data.get_batch(fp, BATCH_SIZE, BLOCK_SIZE)
@@ -113,9 +116,10 @@ if __name__ == '__main__':
         optimizer.step()
 
         t1 = time.time()
-        dt = t1 - t0
+        dt += t1 - t0
         t0 = t1
 
         if it % LOG_INTERVAL == 0:
             if loss is not None:
                 print(f"iter {it}: loss {loss.item():.4f}, time {dt*1000:.2f}ms")
+            dt = 0 # reset delta time

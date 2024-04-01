@@ -2,3 +2,4 @@ env
 .vscode
 *.ipynb
 **/__pycache__
+*.zip
