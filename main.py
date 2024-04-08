@@ -4,7 +4,9 @@ import math
 
 from srb_gpt import wiki, tokenizer, data, gpt
 import numpy as np
+import torch
 
+from torchsummary import summary
 
 
 # wiki data source
@@ -22,15 +24,15 @@ OUR_SPLIT_PATTERN = r"""'|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]++[\r
 VOCAB_SIZE = 512
 
 # model
-BLOCK_SIZE = 64
+BLOCK_SIZE = 128
 N_LAYER = 2
 N_HEAD = 4
 N_EMBD = 128
 
 # train
 DEVICE = 'cpu'
-BATCH_SIZE = 256
-ITERS = 2000
+BATCH_SIZE = 64
+ITERS = 1000
 MAX_LR = 6e-3
 MIN_LR = MAX_LR / 10
 WARMUP_ITERS = 200
@@ -103,7 +105,7 @@ if __name__ == '__main__':
     # Link BIN_DATAFILE and np, don't read it, just refit to memory
     fp = np.memmap(BIN_DATAFILE, dtype='uint16', mode='r')
     
-    
+
     model = gpt.GPT(model_cfg)
     optimizer = model.configure_optimizers(WEIGHT_DECAY, MAX_LR, (BETA1, BETA2), DEVICE)
     t0 = time.time()
@@ -113,7 +115,9 @@ if __name__ == '__main__':
         X, Y = data.get_batch(fp, BATCH_SIZE, BLOCK_SIZE)
         optimizer.zero_grad()
         logits, loss = model.forward(X, Y)
-        optimizer.step()
+        if loss is not None:
+            loss.backward() 
+            optimizer.step()
 
         t1 = time.time()
         dt += t1 - t0
@@ -123,3 +127,9 @@ if __name__ == '__main__':
             if loss is not None:
                 print(f"iter {it}: loss {loss.item():.4f}, time {dt*1000:.2f}ms")
             dt = 0 # reset delta time
+
+    # generate text
+    x = torch.stack([torch.from_numpy(np.array(tok.encode("уређај назван секундарни генератор")).astype(np.int64))]).to(DEVICE)
+    txt = model.generate(x, 200)
+    txt = list(txt.detach().cpu().numpy()[0])
+    print(tok.decode(txt))
