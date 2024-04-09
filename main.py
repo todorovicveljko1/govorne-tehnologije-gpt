@@ -14,12 +14,12 @@ BASE_URL = 'https://sr.wikipedia.org'
 ROOT_LINK = 'https://sr.wikipedia.org/wiki/%D0%9D%D0%B8%D0%BA%D0%BE%D0%BB%D0%B0_%D0%A2%D0%B5%D1%81%D0%BB%D0%B0' # Nikola Tesla
 
 # datafile
-DATAFILE = 'data.txt'
-BIN_DATAFILE = 'data.npy'
+DATAFILE = 'data/tiny_shs.txt'
+BIN_DATAFILE = 'data/tiny_shs.npy'
 
 # tokenizer model file
 TOKENIZER_DIR = 'models'
-TOKENIZER_MODEL = f'{TOKENIZER_DIR}/regex.model'
+TOKENIZER_MODEL = f'{TOKENIZER_DIR}/tiny_shs.model'
 OUR_SPLIT_PATTERN = r"""'|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
 VOCAB_SIZE = 512
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     else:
         # train tokenizer
         print(f'TOKENIZER: {TOKENIZER_MODEL} Not Found, training it using DATAFILE: {DATAFILE}')
-        text = open("cleaned_data.txt", "r", encoding="utf-8").read()
+        text = open(DATAFILE, "r", encoding="utf-8").read()
         os.makedirs("models", exist_ok=True)
         t0 = time.time()
         tok.train(text, VOCAB_SIZE, verbose=True)
@@ -104,15 +104,18 @@ if __name__ == '__main__':
 
     # Link BIN_DATAFILE and np, don't read it, just refit to memory
     fp = np.memmap(BIN_DATAFILE, dtype='uint16', mode='r')
-    
+    #TODO data split
+    #TODO validation loop
 
-    model = gpt.GPT(model_cfg)
+    model = gpt.GPT(model_cfg).to(DEVICE)
     optimizer = model.configure_optimizers(WEIGHT_DECAY, MAX_LR, (BETA1, BETA2), DEVICE)
     t0 = time.time()
     dt = 0
     for it in range(ITERS):
         lr = get_lr(it)
         X, Y = data.get_batch(fp, BATCH_SIZE, BLOCK_SIZE)
+        X = X.to(DEVICE)
+        Y = Y.to(DEVICE)
         optimizer.zero_grad()
         logits, loss = model.forward(X, Y)
         if loss is not None:

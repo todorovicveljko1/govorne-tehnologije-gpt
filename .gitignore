@@ -3,3 +3,8 @@ env
 *.ipynb
 **/__pycache__
 *.zip
+*.csv
+*.html
+temp
+data
+lib
