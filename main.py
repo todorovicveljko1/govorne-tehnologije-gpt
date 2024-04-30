@@ -2,7 +2,7 @@ import os
 import time
 import math
 
-from srb_gpt import wiki, tokenizer, data, gpt
+from srb_gpt import wiki, tokenizer, data, gpt, helper
 import numpy as np
 import torch
 
@@ -14,12 +14,12 @@ BASE_URL = 'https://sr.wikipedia.org'
 ROOT_LINK = 'https://sr.wikipedia.org/wiki/%D0%9D%D0%B8%D0%BA%D0%BE%D0%BB%D0%B0_%D0%A2%D0%B5%D1%81%D0%BB%D0%B0' # Nikola Tesla
 
 # datafile
-DATAFILE = 'data/tiny_shs.txt'
-BIN_DATAFILE = 'data/tiny_shs.npy'
+DATAFILE = 'data/data.txt'
+BIN_DATAFILE = 'data/data.npy'
 
 # tokenizer model file
 TOKENIZER_DIR = 'models'
-TOKENIZER_MODEL = f'{TOKENIZER_DIR}/tiny_shs.model'
+TOKENIZER_MODEL = f'{TOKENIZER_DIR}/regex.model'
 OUR_SPLIT_PATTERN = r"""'|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
 VOCAB_SIZE = 512
 
@@ -32,7 +32,7 @@ N_EMBD = 128
 # train
 DEVICE = 'cpu'
 BATCH_SIZE = 64
-ITERS = 1000
+ITERS = 5000
 MAX_LR = 6e-3
 MIN_LR = MAX_LR / 10
 WARMUP_ITERS = 200
@@ -43,20 +43,6 @@ BETA1 = 0.9
 BETA2 = 0.95
 
 LOG_INTERVAL = 10
-
-def get_lr(it):
-    # 1) linear warmup for warmup_iters steps
-    if it < WARMUP_ITERS:
-        return MAX_LR * it / WARMUP_ITERS
-    # 2) if it > lr_decay_iters, return min learning rate
-    if it > LR_DECAY_DUR:
-        return MIN_LR
-    # 3) in between, use cosine decay down to min learning rate
-    decay_ratio = (it - WARMUP_ITERS) / (LR_DECAY_DUR - WARMUP_ITERS)
-    assert 0 <= decay_ratio <= 1
-    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
-    return MIN_LR + coeff * (MAX_LR - MIN_LR)
-
 
 if __name__ == '__main__':
     # flags
@@ -112,7 +98,7 @@ if __name__ == '__main__':
     t0 = time.time()
     dt = 0
     for it in range(ITERS):
-        lr = get_lr(it)
+        lr = helper.get_lr(it, WARMUP_ITERS, MAX_LR, LR_DECAY_DUR, MIN_LR)
         X, Y = data.get_batch(fp, BATCH_SIZE, BLOCK_SIZE)
         X = X.to(DEVICE)
         Y = Y.to(DEVICE)
